@@ -1,0 +1,1 @@
+import{j as t,a3 as o,A as s}from"./index-D2WH0i0l.js";const c=({open:e,message:i,onClose:r})=>t.jsx(o,{open:e,autoHideDuration:3e3,onClose:r,anchorOrigin:{vertical:"bottom",horizontal:"right"},children:t.jsx(s,{onClose:r,severity:"success",variant:"filled",sx:{bgcolor:"#2e7d32",color:"white","& .MuiAlert-icon":{color:"white"}},children:i})});export{c as S};

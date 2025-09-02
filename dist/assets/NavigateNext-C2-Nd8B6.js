@@ -1,0 +1,1 @@
+import{m as o,j as t}from"./index-D2WH0i0l.js";const s=o(t.jsx("path",{d:"M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"}),"KeyboardArrowDown"),e=o(t.jsx("path",{d:"M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"}),"NavigateBefore"),r=o(t.jsx("path",{d:"M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"}),"NavigateNext");export{s as A,r as N,e as P};

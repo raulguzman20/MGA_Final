@@ -1,0 +1,60 @@
+﻿{
+    "success":  true,
+    "collection":  "usuarios",
+    "validation":  {
+                       "validator":  {
+                                         "$jsonSchema":  {
+                                                             "bsonType":  "object",
+                                                             "required":  [
+                                                                              "nombre",
+                                                                              "apellido",
+                                                                              "correo",
+                                                                              "contrasena",
+                                                                              "tipo_de_documento",
+                                                                              "documento"
+                                                                          ],
+                                                             "properties":  {
+                                                                                "correo":  {
+                                                                                               "bsonType":  "string",
+                                                                                               "pattern":  "^[\\p{L}0-9._%+-]+@[\\p{L}0-9.-]+\\.[\\p{L}]{2,}$",
+                                                                                               "description":  "Debe ser un correo electrónico válido"
+                                                                                           },
+                                                                                "telefono":  {
+                                                                                                 "bsonType":  "string",
+                                                                                                 "pattern":  "^[0-9]{10}$",
+                                                                                                 "description":  "El teléfono debe contener exactamente 10 dígitos numéricos"
+                                                                                             }
+                                                                            }
+                                                         }
+                                     },
+                       "validationLevel":  "moderate",
+                       "validationAction":  "error"
+                   },
+    "indexes":  [
+                    {
+                        "v":  2,
+                        "key":  {
+                                    "_id":  1
+                                },
+                        "name":  "_id_"
+                    },
+                    {
+                        "v":  2,
+                        "key":  {
+                                    "correo":  1
+                                },
+                        "name":  "correo_1",
+                        "background":  true,
+                        "unique":  true
+                    },
+                    {
+                        "v":  2,
+                        "key":  {
+                                    "documento":  1
+                                },
+                        "name":  "documento_1",
+                        "background":  true,
+                        "unique":  true
+                    }
+                ]
+}
