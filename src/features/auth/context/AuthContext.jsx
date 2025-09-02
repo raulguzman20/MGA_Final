@@ -318,6 +318,62 @@ export function AuthProvider({ children }) {
     navigate('/');
   };
 
+  // Verificación de privilegios por módulo/acción
+  const hasPrivilege = (moduleKey, action) => {
+    try {
+      const normalize = (s) => (s || '').toString().trim().toLowerCase();
+      const actionNorm = normalize(action);
+
+      // Si tiene comodín '*' (administrador), acceso total
+      if (user?.permissions?.includes('*')) return true;
+
+      // Mapeo entre claves de módulo del backend y frontend
+      const moduloToPermission = {
+        'beneficiarios': 'venta-servicios-beneficiarios',
+        'asistencia': 'venta-servicios-asistencia',
+        'pagos': 'venta-servicios-pagos',
+        'programacion_de_clases': 'servicios-musicales-programacion-clases',
+        'profesores': 'servicios-musicales-profesores',
+        'programacion_de_profesores': 'servicios-musicales-programacion-profesores',
+        'cursos_matriculas': 'servicios-musicales-cursos-matriculas',
+        'aulas': 'servicios-musicales-aulas',
+        'clases': 'servicios-musicales-clases',
+        'clientes': 'venta-servicios-clientes',
+        'venta_matriculas': 'venta-servicios-venta-matriculas',
+        'venta_cursos': 'venta-servicios-venta-cursos',
+        'roles': 'configuracion-roles',
+        'usuarios': 'configuracion-usuarios',
+        'dashboard': 'dashboard',
+        // Claves ya normalizadas aceptadas tal cual
+        'venta-servicios-pagos': 'venta-servicios-pagos',
+        'venta-servicios-beneficiarios': 'venta-servicios-beneficiarios',
+        'venta-servicios-asistencia': 'venta-servicios-asistencia',
+        'venta-servicios-clientes': 'venta-servicios-clientes',
+        'venta-servicios-venta-matriculas': 'venta-servicios-venta-matriculas',
+        'venta-servicios-venta-cursos': 'venta-servicios-venta-cursos',
+        'servicios-musicales-profesores': 'servicios-musicales-profesores',
+        'servicios-musicales-programacion-profesores': 'servicios-musicales-programacion-profesores',
+        'servicios-musicales-programacion-clases': 'servicios-musicales-programacion-clases',
+        'servicios-musicales-cursos-matriculas': 'servicios-musicales-cursos-matriculas',
+        'servicios-musicales-aulas': 'servicios-musicales-aulas',
+        'servicios-musicales-clases': 'servicios-musicales-clases',
+        'configuracion-roles': 'configuracion-roles',
+        'configuracion-usuarios': 'configuracion-usuarios',
+      };
+
+      const moduleNorm = normalize(moduleKey);
+      const permissionKey = moduloToPermission[moduleNorm] || moduleNorm;
+
+      const modulePrivileges = user?.permisos?.[permissionKey];
+      if (!modulePrivileges || !Array.isArray(modulePrivileges)) return false;
+
+      return modulePrivileges.some((p) => normalize(p) === actionNorm);
+    } catch (e) {
+      console.error('Error evaluando privilegios:', e);
+      return false;
+    }
+  };
+
   useEffect(() => {
     // Si hay un usuario en localStorage, mantener la sesión
     const storedUser = localStorage.getItem('user');
@@ -327,7 +383,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, changeRole }}>
+    <AuthContext.Provider value={{ user, login, logout, changeRole, hasPrivilege }}>
       {children}
     </AuthContext.Provider>
   );
