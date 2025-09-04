@@ -8,6 +8,7 @@ import { StatusButton } from "../../../shared/components/StatusButton"
 import axios from "axios"
 import moment from "moment"
 import "moment/locale/es"
+import { API_CONFIG } from "../../../shared/config/api.config"
 
 moment.locale("es")
 
@@ -27,7 +28,9 @@ const Asistencia = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const asistenciasResponse = await axios.get("http://localhost:3000/api/asistencias")
+        const token = localStorage.getItem('token')
+        const headers = token ? { Authorization: `Bearer ${token}` } : {}
+        const asistenciasResponse = await axios.get(`${API_CONFIG.BASE_URL}/asistencias`, { headers })
         setAsistencias(asistenciasResponse.data)
       } catch (error) {
         setSnackbar({

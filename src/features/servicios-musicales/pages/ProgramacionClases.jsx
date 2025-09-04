@@ -529,10 +529,12 @@ const ProgramacionClases = () => {
       const asistenciaUrl = `http://localhost:3000/api/asistencias/programacion/${selectedClase.id}/bulk`;
       console.log("🌐 URL de asistencia:", asistenciaUrl);
       console.log("📋 Datos a enviar a asistencia:", { asistencias: asistenciasParaActualizar });
-      
+      const token = localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await axios.put(
         asistenciaUrl,
-        { asistencias: asistenciasParaActualizar }
+        { asistencias: asistenciasParaActualizar },
+        { headers }
       )
 
       console.log("✅ Respuesta del servidor (asistencias):", response.data)
@@ -546,7 +548,7 @@ const ProgramacionClases = () => {
       try {
         await axios.patch(estadoUrl, {
           estado: "ejecutada"
-        })
+        }, { headers })
         console.log("✅ Clase marcada como ejecutada");
         await reloadAulas(); // Recargar aulas para liberar el aula
       } catch (error) {
