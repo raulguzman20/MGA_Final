@@ -6,6 +6,7 @@ import { FormModal } from '../../../shared/components/FormModal';
 import { StatusButton } from '../../../shared/components/StatusButton';
 import AlertDialog from '../../../shared/components/AlertDialog';
 import { Snackbar, Alert } from '@mui/material';
+import { API_CONFIG } from '../../../shared/config/api.config';
 
 const Clientes = () => {
   const [clientes, setClientes] = useState([]);
@@ -26,6 +27,40 @@ const Clientes = () => {
     severity: 'success'
   });
 
+  // Helper: agrega el header Authorization con el token almacenado
+  const getAuthHeaders = () => {
+    // 1) Si axios ya tiene el header configurado por AuthContext, úsalo
+    const defaultAuth = axios?.defaults?.headers?.common?.Authorization || axios?.defaults?.headers?.common?.authorization;
+    if (defaultAuth) {
+      return { Authorization: defaultAuth };
+    }
+
+    // 2) Intentar leer el token directo
+    let token = localStorage.getItem('token');
+
+    // 3) Si no existe, intentar leerlo desde el objeto 'user' en localStorage
+    if (!token) {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const userObj = JSON.parse(userStr);
+          token = userObj?.token || userObj?.usuario?.token || userObj?.data?.token || null;
+        } catch (e) {
+          // Si falla el parseo, no hacemos nada y continuamos sin token
+        }
+      }
+    }
+
+    // 4) Si tenemos token, asegurarnos de enviar el prefijo Bearer
+    if (token) {
+      const value = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      return { Authorization: value };
+    }
+
+    // 5) Si no hay token, devolvemos objeto vacío (las rutas protegidas devolverán 401)
+    return {};
+  };
+
   // Utilidad: formatea una fecha (ISO o Date) al formato requerido por inputs type="date" (yyyy-MM-dd)
   const formatDateForInput = (dateLike) => {
     if (!dateLike) return '';
@@ -43,11 +78,11 @@ const Clientes = () => {
   const fetchClientes = async () => {
     try {
       // Obtener beneficiarios
-      const beneficiariosResponse = await axios.get('http://localhost:3000/api/beneficiarios');
+      const beneficiariosResponse = await axios.get(`${API_CONFIG.BASE_URL}/beneficiarios`, { headers: getAuthHeaders() });
       const beneficiarios = beneficiariosResponse.data;
 
       // Obtener usuarios_has_rol
-      const usuariosHasRolResponse = await axios.get('http://localhost:3000/api/usuarios_has_rol');
+      const usuariosHasRolResponse = await axios.get(`${API_CONFIG.BASE_URL}/usuarios_has_rol`, { headers: getAuthHeaders() });
       const usuariosHasRol = usuariosHasRolResponse.data;
 
       // Filtrar beneficiarios que son clientes (clienteId === _id O clienteId === 'cliente')
@@ -191,7 +226,7 @@ const Clientes = () => {
       // -------------------
       if (isEditing) {
         try {
-          await axios.put(`http://localhost:3000/api/beneficiarios/${selectedCliente.id}`, {
+          await axios.put(`${API_CONFIG.BASE_URL}/beneficiarios/${selectedCliente.id}`, {
             nombre: formDataSinConfirmacion.nombre,
             apellido: formDataSinConfirmacion.apellido,
             tipo_de_documento: formDataSinConfirmacion.tipo_de_documento,
@@ -201,15 +236,15 @@ const Clientes = () => {
             telefono: formDataSinConfirmacion.telefono,
             correo: formDataSinConfirmacion.correo,
             esBeneficiario: formDataSinConfirmacion.esBeneficiario || false
-          });
+          }, { headers: getAuthHeaders() });
 
-          const beneficiarioResponse = await axios.get(`http://localhost:3000/api/beneficiarios/${selectedCliente.id}`);
-          const usuarioHasRolResponse = await axios.get(`http://localhost:3000/api/usuarios_has_rol/${beneficiarioResponse.data.usuario_has_rolId}`);
+          const beneficiarioResponse = await axios.get(`${API_CONFIG.BASE_URL}/beneficiarios/${selectedCliente.id}`, { headers: getAuthHeaders() });
+          const usuarioHasRolResponse = await axios.get(`${API_CONFIG.BASE_URL}/usuarios_has_rol/${beneficiarioResponse.data.usuario_has_rolId}`, { headers: getAuthHeaders() });
           const usuarioId = typeof usuarioHasRolResponse.data.usuarioId === 'string'
             ? usuarioHasRolResponse.data.usuarioId
             : usuarioHasRolResponse.data.usuarioId?._id;
 
-          const usuarioResponse = await axios.get(`http://localhost:3000/api/usuarios/${usuarioId}`);
+          const usuarioResponse = await axios.get(`${API_CONFIG.BASE_URL}/usuarios/${usuarioId}`, { headers: getAuthHeaders() });
           const usuarioActual = usuarioResponse.data.usuario || usuarioResponse.data;
 
           const usuarioUpdateData = {
@@ -224,7 +259,7 @@ const Clientes = () => {
           if (usuarioActual.rol) usuarioUpdateData.rol = usuarioActual.rol;
           if (formDataSinConfirmacion.contrasena) usuarioUpdateData.contrasena = formDataSinConfirmacion.contrasena;
 
-          await axios.put(`http://localhost:3000/api/usuarios/${usuarioId}`, usuarioUpdateData);
+          await axios.put(`${API_CONFIG.BASE_URL}/usuarios/${usuarioId}`, usuarioUpdateData, { headers: getAuthHeaders() });
         } catch (error) {
           console.error('Error al actualizar el cliente:', error);
           throw error;
@@ -258,24 +293,24 @@ const Clientes = () => {
         // 🔍 LOG para depurar
         console.log('Payload enviado a /usuarios:', usuarioData);
 
-        const usuarioResponse = await axios.post('http://localhost:3000/api/usuarios', usuarioData);
+        const usuarioResponse = await axios.post(`${API_CONFIG.BASE_URL}/usuarios`, usuarioData, { headers: getAuthHeaders() });
         const usuarioId = usuarioResponse.data._id || usuarioResponse.data?.usuario?._id;
 
         // Enviar correo de bienvenida (no interrumpe flujo si falla)
         try {
-          await axios.post('http://localhost:3000/api/email/welcome', {
+          await axios.post(`${API_CONFIG.BASE_URL}/email/welcome`, {
             email: usuarioData.correo,
             nombre: usuarioData.nombre,
             apellido: usuarioData.apellido,
             username: usuarioData.correo,
             password: usuarioData.contrasena
-          });
+          }, { headers: getAuthHeaders() });
         } catch (emailError) {
           console.error('Error al enviar correo de bienvenida:', emailError);
         }
 
         // Obtener roles disponibles
-        const rolesResponse = await axios.get('http://localhost:3000/api/roles');
+        const rolesResponse = await axios.get(`${API_CONFIG.BASE_URL}/roles`, { headers: getAuthHeaders() });
         const roles = rolesResponse.data.roles || rolesResponse.data || [];
         const clienteRol = Array.isArray(roles)
           ? roles.find((rol) => rol.nombre === 'Cliente')
@@ -284,10 +319,10 @@ const Clientes = () => {
         if (!clienteRol) throw new Error('Rol "Cliente" not found');
 
         // Crear relación usuario-rol
-        const usuarioHasRolResponse = await axios.post('http://localhost:3000/api/usuarios_has_rol', {
+        const usuarioHasRolResponse = await axios.post(`${API_CONFIG.BASE_URL}/usuarios_has_rol`, {
           usuarioId,
           rolId: clienteRol._id
-        });
+        }, { headers: getAuthHeaders() });
         const usuario_has_rolId = usuarioHasRolResponse.data._id || usuarioHasRolResponse.data[0]?._id;
 
         // Crear beneficiario
@@ -307,13 +342,13 @@ const Clientes = () => {
         // 🔍 LOG para depurar
         console.log('Payload enviado a /beneficiarios:', beneficiarioData);
 
-        const beneficiarioResponse = await axios.post('http://localhost:3000/api/beneficiarios', beneficiarioData);
+        const beneficiarioResponse = await axios.post(`${API_CONFIG.BASE_URL}/beneficiarios`, beneficiarioData, { headers: getAuthHeaders() });
 
         // Si es beneficiario también, actualizar su clienteId
         if (formDataSinConfirmacion.esBeneficiario) {
-          await axios.put(`http://localhost:3000/api/beneficiarios/${beneficiarioResponse.data._id}`, {
+          await axios.put(`${API_CONFIG.BASE_URL}/beneficiarios/${beneficiarioResponse.data._id}`, {
             clienteId: beneficiarioResponse.data._id
-          });
+          }, { headers: getAuthHeaders() });
         }
       }
 
@@ -367,7 +402,7 @@ const Clientes = () => {
   const confirmDeleteCliente = async (cliente) => {
     setAlertDialog(prev => ({ ...prev, open: false }));
     try {
-      await axios.delete(`http://localhost:3000/api/beneficiarios/${cliente.id}`);
+      await axios.delete(`${API_CONFIG.BASE_URL}/beneficiarios/${cliente.id}`, { headers: getAuthHeaders() });
       fetchClientes();
       // Notificación de éxito
       setSnackbar({
@@ -432,10 +467,10 @@ const Clientes = () => {
 
       const updatedStatus = !cliente.estado;
 
-      await axios.put(`http://localhost:3000/api/beneficiarios/${clienteId}`, {
+      await axios.put(`${API_CONFIG.BASE_URL}/beneficiarios/${clienteId}`, {
         ...cliente,
         estado: updatedStatus
-      });
+      }, { headers: getAuthHeaders() });
 
       fetchClientes();
     } catch (error) {

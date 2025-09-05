@@ -820,7 +820,7 @@ import { useState, useEffect } from 'react';
         />
 
         <ScheduleModal
-          open={scheduleModalOpen}
+          isOpen={scheduleModalOpen}
           onClose={handleCloseScheduleModal}
           onSubmit={handleAddSchedule}
         />

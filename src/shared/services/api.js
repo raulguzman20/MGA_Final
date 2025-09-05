@@ -10,6 +10,48 @@ const api = axios.create({
   timeout: 10000
 });
 
+// Interceptor para adjuntar Authorization automáticamente desde axios.defaults o localStorage
+api.interceptors.request.use(
+  (config) => {
+    try {
+      // Priorizar cualquier Authorization ya presente
+      if (!config.headers) config.headers = {};
+      if (config.headers.Authorization || config.headers.authorization) {
+        return config;
+      }
+
+      // 1) Intentar desde axios.defaults (AuthContext lo configura)
+      const defaultAuth = axios?.defaults?.headers?.common?.Authorization || axios?.defaults?.headers?.common?.authorization;
+      if (defaultAuth) {
+        config.headers.Authorization = defaultAuth;
+        return config;
+      }
+
+      // 2) Intentar desde localStorage ('token' directo o dentro de 'user')
+      let token = localStorage.getItem('token');
+      if (!token) {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const userObj = JSON.parse(userStr);
+            token = userObj?.token || userObj?.usuario?.token || userObj?.data?.token || null;
+          } catch (e) {
+            // ignorar error de parseo
+          }
+        }
+      }
+
+      if (token) {
+        config.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      }
+    } catch (e) {
+      // No bloquear la request si hay un error obteniendo el token
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Interceptor para manejar respuestas y errores
 api.interceptors.response.use(
   response => response.data,
@@ -108,6 +150,16 @@ export const usuariosHasRolService = {
       return response;
     } catch (error) {
       console.error('Error en getAll usuariosHasRol:', error);
+      throw error;
+    }
+  },
+
+  getById: async (id) => {
+    try {
+      const response = await api.get(`${API_CONFIG.ENDPOINTS.USUARIOS_HAS_ROL}/${id}`);
+      return response;
+    } catch (error) {
+      console.error('Error en getById usuariosHasRol:', error);
       throw error;
     }
   },
@@ -226,7 +278,7 @@ export const ventasService = {
   },
 }
 
-// Servicios para beneficiarios (mínimo necesarios)
+// Servicios para beneficiarios (extendidos)
 export const beneficiariosService = {
   getAll: async (params = {}) => {
     try {
@@ -237,9 +289,49 @@ export const beneficiariosService = {
       throw error
     }
   },
+
+  getById: async (id) => {
+    try {
+      const response = await api.get(`${API_CONFIG.ENDPOINTS.BENEFICIARIOS}/${id}`)
+      return response
+    } catch (error) {
+      console.error('Error en getById beneficiarios:', error)
+      throw error
+    }
+  },
+
+  create: async (data) => {
+    try {
+      const response = await api.post(API_CONFIG.ENDPOINTS.BENEFICIARIOS, data)
+      return response
+    } catch (error) {
+      console.error('Error en create beneficiarios:', error)
+      throw error
+    }
+  },
+
+  update: async (id, data) => {
+    try {
+      const response = await api.put(`${API_CONFIG.ENDPOINTS.BENEFICIARIOS}/${id}`, data)
+      return response
+    } catch (error) {
+      console.error('Error en update beneficiarios:', error)
+      throw error
+    }
+  },
+
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`${API_CONFIG.ENDPOINTS.BENEFICIARIOS}/${id}`)
+      return response
+    } catch (error) {
+      console.error('Error en delete beneficiarios:', error)
+      throw error
+    }
+  },
 }
 
-// Servicios para cursos (mínimo necesarios)
+// Servicio para cursos (mínimo necesarios)
 export const cursosService = {
   getAll: async (params = {}) => {
     try {
@@ -250,4 +342,17 @@ export const cursosService = {
       throw error
     }
   },
+}
+
+// Servicio para email
+export const emailService = {
+  welcome: async ({ email, nombre, apellido, username, password }) => {
+    try {
+      const response = await api.post('/email/welcome', { email, nombre, apellido, username, password })
+      return response
+    } catch (error) {
+      console.error('Error en email.welcome:', error)
+      throw error
+    }
+  }
 }

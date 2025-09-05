@@ -391,9 +391,9 @@ export const GenericList2 = ({ // Changed from GenericList to GenericList2
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedData.map((row) => (
+            {paginatedData.map((row, rowIndex) => (
               <TableRow
-                key={row.id}
+                key={row.id || row._id || `row-${rowIndex}`}
                 hover
                 sx={{
                   borderBottom: darkMode ? "1px solid rgba(255, 255, 255, 0.1)" : "1px solid #e0e0e0",
@@ -404,7 +404,7 @@ export const GenericList2 = ({ // Changed from GenericList to GenericList2
               >
                 {columns.map((column, index) => (
                   <TableCell
-                    key={`${row.id}-${column.id}`}
+                    key={`${row.id || row._id || `row-${rowIndex}`}-${column.id}`}
                     align="center" // Center align all data cells
                     sx={{
                       color:
@@ -489,7 +489,7 @@ export const GenericList2 = ({ // Changed from GenericList to GenericList2
                           onClick={() => onCancel(row)}
                           size="small"
                           sx={{
-                            color: "#f44336",
+                            color: "#9e9e9e",
                             padding: "4px",
                           }}
                         >

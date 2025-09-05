@@ -8,8 +8,30 @@ import { VentaMatriculasForm } from "../components/VentaMatriculasForm"
 import { Box, Chip, TextField } from "@mui/material"
 import { ConfirmationDialog } from "../../../shared/components/ConfirmationDialog"
 import { useAlertVentas } from "../context/AlertVentasContext"
+import { API_CONFIG } from '../../../shared/config/api.config'
 
-const API_BASE_URL = "http://localhost:3000/api"
+const API_BASE_URL = API_CONFIG.BASE_URL
+
+// Helper para adjuntar Authorization
+const getAuthHeaders = () => {
+  const defaultAuth = axios?.defaults?.headers?.common?.Authorization || axios?.defaults?.headers?.common?.authorization;
+  if (defaultAuth) return { Authorization: defaultAuth };
+  let token = localStorage.getItem('token');
+  if (!token) {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const userObj = JSON.parse(userStr);
+        token = userObj?.token || userObj?.usuario?.token || userObj?.data?.token || null;
+      } catch {}
+    }
+  }
+  if (token) {
+    const value = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+    return { Authorization: value };
+  }
+  return {};
+}
 
 const VentaMatriculas = () => {
   const { showSuccess, showError } = useAlertVentas()

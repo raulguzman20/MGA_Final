@@ -1,5 +1,30 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { API_CONFIG } from '../../../shared/config/api.config';
+
+// Configurar axios con el token desde el arranque del módulo (antes de que se monten componentes)
+(() => {
+  try {
+    const tokenFromKey = localStorage.getItem('token');
+    let tokenFromUser = null;
+    const rawUser = localStorage.getItem('user');
+    if (!tokenFromKey && rawUser) {
+      try {
+        const parsed = JSON.parse(rawUser);
+        tokenFromUser = parsed?.token || null;
+      } catch (_) {
+        tokenFromUser = null;
+      }
+    }
+    const token = tokenFromKey || tokenFromUser;
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+  } catch (e) {
+    // Ignorar errores de acceso a localStorage
+  }
+})();
 
 const AuthContext = createContext();
 
@@ -11,9 +36,30 @@ export function AuthProvider({ children }) {
   });
   const navigate = useNavigate();
 
+  // Asegurar que axios tenga el token configurado cuando cambie el usuario o si existe en localStorage
+  useEffect(() => {
+    try {
+      const token = (user && user.token) || localStorage.getItem('token') || (() => {
+        try {
+          const parsed = JSON.parse(localStorage.getItem('user') || 'null');
+          return parsed?.token || null;
+        } catch (_) {
+          return null;
+        }
+      })();
+      if (token) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } else {
+        delete axios.defaults.headers.common['Authorization'];
+      }
+    } catch (_) {
+      // noop
+    }
+  }, [user?.token]);
+
   const login = async ({ email, password }) => {
     try {
-      const response = await fetch('http://localhost:3000/api/login', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -28,7 +74,13 @@ export function AuthProvider({ children }) {
         const permissionsSet = new Set();
         
         try {
-          const rolPermisoResponse = await fetch(`http://localhost:3000/api/rol_permiso_privilegio?rolId=${data.usuario.rol._id}`);
+          const roleId = data?.usuario?.rol?.id || data?.usuario?.rol?._id;
+          const rolPermisoResponse = await fetch(`${API_CONFIG.BASE_URL}/rol_permiso_privilegio?rolId=${roleId}`, {
+            headers: {
+              'Authorization': `Bearer ${data.token}`,
+              'Accept': 'application/json'
+            }
+          });
           const rolPermisoData = await rolPermisoResponse.json();
           
           // Mapeo de módulos del backend a permisos del frontend
@@ -133,6 +185,8 @@ export function AuthProvider({ children }) {
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
         localStorage.setItem('token', data.token);
+        // Configurar axios globalmente con el token
+        axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
         
         // Redirigir según los permisos del usuario
         const getDefaultRoute = (permissions, role) => {
@@ -163,7 +217,7 @@ export function AuthProvider({ children }) {
 
   const changeRole = async (newRoleId) => {
     try {
-      const response = await fetch('http://localhost:3000/api/login/cambiar-rol', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/login/cambiar-rol`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +236,13 @@ export function AuthProvider({ children }) {
         const permissionsSet = new Set();
         
         try {
-          const rolPermisoResponse = await fetch(`http://localhost:3000/api/rol_permiso_privilegio?rolId=${data.usuario.rol._id}`);
+          const roleId = data?.usuario?.rol?.id || data?.usuario?.rol?._id;
+          const rolPermisoResponse = await fetch(`${API_CONFIG.BASE_URL}/rol_permiso_privilegio?rolId=${roleId}`, {
+            headers: {
+              'Authorization': `Bearer ${data.token}`,
+              'Accept': 'application/json'
+            }
+          });
           const rolPermisoData = await rolPermisoResponse.json();
           
           // Mapeo de módulos del backend a permisos del frontend
@@ -283,6 +343,8 @@ export function AuthProvider({ children }) {
         setUser(updatedUserData);
         localStorage.setItem('user', JSON.stringify(updatedUserData));
         localStorage.setItem('token', data.token);
+        // Actualizar axios globalmente con el nuevo token
+        axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
         
         // Redirigir según los permisos del nuevo rol
         const getDefaultRoute = (permissions, role) => {
@@ -315,6 +377,8 @@ export function AuthProvider({ children }) {
     setUser(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    // Limpiar el header Authorization global de axios
+    delete axios.defaults.headers.common['Authorization'];
     navigate('/');
   };
 

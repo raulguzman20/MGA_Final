@@ -18,6 +18,16 @@ const apiClient = axios.create({
   timeout: 10000, // 10 segundos de timeout
 });
 
+// Inyectar token en cada request
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Función para buscar clientes (para el selector de clienteId)
 const buscarClientes = async () => {
   try {
@@ -163,22 +173,12 @@ const Beneficiarios = () => {
       }
 
       // Filtrar beneficiarios según las reglas:
-      // 1. Si clienteId === _id, NO es un beneficiario (es un cliente)
-      // 2. Si clienteId === 'cliente', NO es un beneficiario (es un cliente)
-      // 3. Si clienteId es diferente a _id y diferente a 'cliente', ES un beneficiario
-      let beneficiariosFiltrados = beneficiarios.filter(beneficiario =>
-        beneficiario.clienteId !== beneficiario._id &&
-        beneficiario.clienteId !== 'cliente' || beneficiario.clienteId === beneficiario._id
+      // - Excluir registros que representan al cliente en sí (clienteId === _id)
+      // - Excluir registros marcados como 'cliente'
+      // El backend ya restringe por rol "cliente" para devolver sólo los asociados al cliente autenticado
+      let beneficiariosFiltrados = beneficiarios.filter((beneficiario) =>
+        beneficiario.clienteId !== beneficiario._id && String(beneficiario.clienteId).toLowerCase() !== 'cliente'
       );
-
-      // Si el usuario es cliente, filtrar solo sus beneficiarios
-      if (user && user.role === 'cliente') {
-        console.log('Filtrando beneficiarios para cliente:', user.id);
-        beneficiariosFiltrados = beneficiariosFiltrados.filter(beneficiario =>
-          beneficiario.clienteId === user.id || beneficiario.clienteId === user.documento
-        );
-        console.log('Beneficiarios filtrados para cliente:', beneficiariosFiltrados.length);
-      }
 
       console.log('Total beneficiarios:', beneficiarios.length);
       console.log('Beneficiarios filtrados:', beneficiariosFiltrados.length);
@@ -264,7 +264,7 @@ const Beneficiarios = () => {
     if (confirmDelete) {
       try {
         setLoading(true);
-        await axios.delete(`http://localhost:3000/api/beneficiarios/${beneficiario.id}`);
+        await apiClient.delete(`/api/beneficiarios/${beneficiario.id}`);
         await fetchBeneficiarios(); // Recargar la lista de beneficiarios
 
         // Mostrar mensaje de éxito

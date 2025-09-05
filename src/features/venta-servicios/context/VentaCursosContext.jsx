@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { API_CONFIG } from '../../../shared/config/api.config';
 
 const VentaCursosContext = createContext();
 
@@ -15,6 +16,44 @@ export const VentaCursosProvider = ({ children }) => {
   const [ventas, setVentas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Caches que persisten entre renders para evitar solicitudes repetidas
+  const clienteCacheRef = useRef(new Map());
+  const missingIdsRef = useRef(new Set());
+  const didInitRef = useRef(false);
+
+  const getAuthHeaders = () => {
+    try {
+      // 1) Prefer defaults if already set globally (e.g., via interceptor)
+      const defaultAuth = axios.defaults?.headers?.common?.Authorization;
+      if (defaultAuth && defaultAuth.startsWith('Bearer ')) {
+        return { Authorization: defaultAuth };
+      }
+
+      // 2) Try raw token from localStorage
+      let token = localStorage.getItem('token');
+
+      // 3) Fallback: token inside stored user object
+      if (!token) {
+        const userRaw = localStorage.getItem('user');
+        if (userRaw) {
+          try {
+            const user = JSON.parse(userRaw);
+            token = user?.token || user?.accessToken || user?.jwt;
+          } catch (e) {
+            // ignore JSON parse errors
+          }
+        }
+      }
+
+      if (token && !token.startsWith('Bearer ')) {
+        token = `Bearer ${token}`;
+      }
+
+      return token ? { Authorization: token } : {};
+    } catch {
+      return {};
+    }
+  };
 
   const refreshVentas = async () => {
     await fetchVentas();
@@ -24,7 +63,7 @@ export const VentaCursosProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get('http://localhost:3000/api/ventas');
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/ventas`, { headers: getAuthHeaders() });
       console.log('Respuesta de la API:', response.data);
       // Verificar que response.data sea un array
       const ventasData = Array.isArray(response.data) ? response.data : response.data.ventas || [];
@@ -33,7 +72,40 @@ export const VentaCursosProvider = ({ children }) => {
       const ventasCursos = ventasData.filter(venta => venta.tipo === 'curso');
       console.log('Ventas de cursos filtradas:', ventasCursos);
       
+      // Mapa de beneficiarios existentes para evitar requests si clienteId coincide con algún beneficiario
+      const beneficiariosMap = new Map();
+      for (const v of ventasCursos) {
+        const b = v?.beneficiarioId;
+        if (b && b._id) {
+          beneficiariosMap.set(String(b._id), b);
+        }
+      }
+      
       // Obtener información de los clientes para cada beneficiario (manejo seguro de 404/IDs inválidos)
+      // Cache persistente por ejecución para no repetir solicitudes del mismo ID
+      const clienteCache = clienteCacheRef.current;
+
+      const fetchClienteConFallback = async (id) => {
+        try {
+          // Intentar primero como Beneficiario (en muchos datos clienteId referencia a beneficiario)
+          const resB = await axios.get(`${API_CONFIG.BASE_URL}/beneficiarios/${id}`, { headers: getAuthHeaders() });
+          return resB.data;
+        } catch (errB) {
+          if (errB.response?.status !== 404) {
+            return null;
+          }
+          // Si no existe como beneficiario, intentar como Cliente
+          try {
+            const res = await axios.get(`${API_CONFIG.BASE_URL}/clientes/${id}`, { headers: getAuthHeaders() });
+            return res.data;
+          } catch (err) {
+            // Marcar como missing para no insistir de nuevo
+            missingIdsRef.current.add(String(id));
+            return null;
+          }
+        }
+      };
+
       const ventasConClientes = await Promise.all(ventasCursos.map(async (venta) => {
         try {
           const beneficiario = venta.beneficiarioId;
@@ -47,6 +119,12 @@ export const VentaCursosProvider = ({ children }) => {
             return { ...venta, cliente: beneficiario };
           }
 
+          // Si el clienteId coincide con otro beneficiario presente en la data, úsalo directamente
+          const posibleBeneficiarioCliente = beneficiariosMap.get(String(clienteId));
+          if (posibleBeneficiarioCliente) {
+            return { ...venta, cliente: posibleBeneficiarioCliente };
+          }
+
           // Evitar IDs centinela como "cliente" o valores no ObjectId válidos
           if (typeof clienteId === 'string' && clienteId.toLowerCase().includes('cliente')) {
             return venta;
@@ -54,10 +132,18 @@ export const VentaCursosProvider = ({ children }) => {
           const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(String(clienteId));
           if (!isValidObjectId) return venta;
 
-          // Intentar cargar el cliente; si falla (404, etc.), continuar sin bloquear toda la página
-          const clienteResponse = await axios.get(`http://localhost:3000/api/beneficiarios/${clienteId}`);
-          console.log('Respuesta del cliente:', clienteResponse.data);
-          return { ...venta, cliente: clienteResponse.data };
+          const key = String(clienteId);
+          if (missingIdsRef.current.has(key)) {
+            return venta;
+          }
+          if (!clienteCache.has(key)) {
+            clienteCache.set(key, fetchClienteConFallback(key));
+          }
+          const clienteData = await clienteCache.get(key);
+          if (clienteData) {
+            return { ...venta, cliente: clienteData };
+          }
+          return venta;
         } catch (cliErr) {
           console.warn('No se pudo cargar cliente para venta', venta?._id, cliErr.response?.status, cliErr.message);
           return venta;
@@ -100,15 +186,17 @@ export const VentaCursosProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
     fetchVentas();
   }, []);
 
   const anularVenta = async (ventaId, motivoAnulacion) => {
     try {
       setLoading(true);
-      await axios.patch(`http://localhost:3000/api/ventas/${ventaId}/anular`, {
+      await axios.patch(`${API_CONFIG.BASE_URL}/ventas/${ventaId}/anular`, {
         motivoAnulacion
-      });
+      }, { headers: getAuthHeaders() });
       await fetchVentas();
       return true;
     } catch (err) {
@@ -122,7 +210,7 @@ export const VentaCursosProvider = ({ children }) => {
   const deleteVenta = async (ventaId) => {
     try {
       setLoading(true);
-      await axios.delete(`http://localhost:3000/api/ventas/${ventaId}`);
+      await axios.delete(`${API_CONFIG.BASE_URL}/ventas/${ventaId}`, { headers: getAuthHeaders() });
       await fetchVentas();
       return true;
     } catch (err) {
